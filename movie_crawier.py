@@ -6,6 +6,17 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 
+import telegram
+import asyncio
+import secret
+
+
+asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+async def send(text) :    
+    await bot.sendMessage(chat_id=secret.chat_id, text=text)
+
+bot = telegram.Bot(token=secret.token)
+
 # Selenium WebDriver를 초기화합니다. (ChromeDriver 사용 예제)
 driver = webdriver.Chrome()
 
@@ -35,10 +46,12 @@ driver.quit()
 soup = BeautifulSoup(iframe_content, 'html.parser')
 
 is_imax_list = soup.select('span.imax')
+imax_name_lst= []
 if len(is_imax_list) > 0 :
     for i in is_imax_list :
         imax = i.find_parent('div', class_='col-times')
-        print(imax.select_one('div.info-movie > a > strong').text.strip())
-    print('imax 열림')
+        imax_name_lst.append(imax.select_one('div.info-movie > a > strong').text.strip())
+
+    asyncio.run(send(str(imax_name_lst) + " IMAX가 열렸습니다." ))
 else :
-    print('imax 없음')
+    asyncio.run(send("열린 IMAX가 없습니다." ))
