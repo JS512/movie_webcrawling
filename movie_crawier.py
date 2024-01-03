@@ -1,4 +1,4 @@
-url = 'http://www.cgv.co.kr/theaters/?areacode=01&theaterCode=0013&date=20240111'
+url = 'http://www.cgv.co.kr/theaters/?areacode=01&theaterCode=0013&date=20240103'
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -36,6 +36,9 @@ soup = BeautifulSoup(iframe_content, 'html.parser')
 
 is_imax_list = soup.select('span.imax')
 if len(is_imax_list) > 0 :
-    print('is imax')
+    for i in is_imax_list :
+        imax = i.find_parent('div', class_='col-times')
+        print(imax.select_one('div.info-movie > a > strong').text.strip())
+    print('imax 열림')
 else :
-    print('no imax')
+    print('imax 없음')
