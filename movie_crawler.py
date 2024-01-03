@@ -57,6 +57,7 @@ def job_function() :
             imax_name_lst.append(imax.select_one('div.info-movie > a > strong').text.strip())
 
         asyncio.run(send(str(imax_name_lst) + " IMAX가 열렸습니다." , bot))
+        sched.pause()
     else :
         asyncio.run(send("열린 IMAX가 없습니다." , bot))
 
