@@ -1,4 +1,4 @@
-url = 'http://www.cgv.co.kr/theaters/?areacode=01&theaterCode=0013&date=20240104'
+
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -9,22 +9,67 @@ from bs4 import BeautifulSoup
 
 
 import telegram
+from telegram import Update
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 import asyncio
 import secret
+import datetime
+import re
 
+from apscheduler.schedulers.blocking import BlockingScheduler
 
 #비동기 함수인 텔레그램 챗 봇 사용시 결과는 나오지만 오류가 발생하여 이를 막기위함
 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy()) 
 
+
+def setUrl(date) :
+    if date == '' :
+        date = datetime.datetime.now().strftime("%Y%m%d")
+    
+    url = 'http://www.cgv.co.kr/theaters/?areacode=01&theaterCode=0013&date={}'.format(date)
+    return url
+
 #텔레그램 봇이 메시지 전달하도록
-async def send(text, bot) :
+async def send(text, bot, chat_id) :
      #텔레그램 봇의 메시지 전달은 비동기..
-    await bot.sendMessage(chat_id=secret.chat_id, text=text)
+    await bot.sendMessage(chat_id=chat_id, text=text)
 
 
-def job_function() :
+def check_args(context) :
+    
+    text_caps = context.args
+    
+    if len(text_caps) > 0 :
+        if re.match(r'^([\s\d]+){8}$', text_caps[0]) and check_is_valid_date(text_caps[0]) :            
+            return text_caps[0]
+        else :
+            return ''
+    else :
+        return ''
+
+
+def check_is_valid_date(text) :
+    try :
+        datetime_format = "%Y%m%d"
+        datetime_result = datetime.datetime.strptime(text, datetime_format)
+
+        max_datetime = datetime.datetime.now() + datetime.timedelta(days=22)
+
+        if datetime_result > max_datetime or datetime_result < datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) :            
+            return False
+
+        return True
+    except ValueError as e :
+        return False
+
+async def job_function(update: Update, context: ContextTypes.DEFAULT_TYPE) :
+    date = check_args(context)
+    
+    url = setUrl(date)
+
     #텔레그램 봇 인스턴스 생성
-    bot = telegram.Bot(token=secret.token)
+    bot = context.bot
+    chat_id = update.effective_chat.id
 
     #Firefox의 'headless' 옵션을 사용하기 위함.
     options = FirefoxOptions()
@@ -65,7 +110,7 @@ def job_function() :
     # imax가 존재하는 태그 리스트
     is_imax_list = soup.select('span.imax')
     imax_name_lst= []
-    if len(is_imax_list) > 0 :
+    if len(is_imax_list) > 0:
         for i in is_imax_list :
             #imax가 존재하는 태그
             imax = i.find_parent('div', class_='col-times')
@@ -73,15 +118,22 @@ def job_function() :
             imax_name_lst.append(imax.select_one('div.info-movie > a > strong').text.strip())
 
         # 챗봇으로 전송.
-        asyncio.run(send(str(imax_name_lst) + " IMAX가 열렸습니다." , bot))
+        await send(date + ' ' + str(imax_name_lst) + " IMAX가 열렸습니다." , bot, chat_id)
         # sched.pause()
     else :
         # 챗봇으로 전송.
-        asyncio.run(send("열린 IMAX가 없습니다." , bot))
+        await send(date + ' ' + "열린 IMAX가 없습니다." , bot, chat_id)    
 
 
 # sched = BlockingScheduler()
-# sched.add_job(job_function, 'interval', seconds=30)
+# sched.add_job(job_function, 'cron', hour=0, minute=0)
 # sched.start()
-        
-job_function()
+
+
+if __name__ == "__main__" :
+    application = ApplicationBuilder().token(secret.token).build()
+    
+    start_handler = CommandHandler('start', job_function)
+    application.add_handler(start_handler)
+    
+    application.run_polling()
